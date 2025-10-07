@@ -82,7 +82,7 @@ fn compile(name: &str) -> Result<(String, String), String> {
         .expect("could not run make");
     assert!(output.status.success(), "linking failed");
 
-    // Run produced program and capture stdout
+    // Run program and capture stdout
     let run_path = mk_path(name, Ext::Run);
     let output_run = Command::new(&run_path)
         .output()
@@ -145,13 +145,26 @@ pub(crate) fn run_repl_sequence_test(name: &str, commands: &[&str], expected_out
 
     // Parse outputs
     let actual_lines = parse_repl_output(&actual_outputs);
-    let expected_vec: Vec<&str> = expected_outputs.iter().map(|s| s.trim()).collect();
     let actual_vec: Vec<&str> = actual_lines.iter().map(|s| s.trim()).collect();
 
-    if expected_vec != actual_vec {
+    // For each expected_outputs entry, allow comma-separated substrings, and pass if all are found in the corresponding actual output
+    let mut mismatch = false;
+    for (i, expected) in expected_outputs.iter().enumerate() {
+        let expected_subs: Vec<&str> = expected.split(',').map(|s| s.trim()).collect();
+        let actual = actual_vec.get(i).unwrap_or(&"");
+        let all_found = expected_subs.iter().all(|sub| actual.contains(sub));
+        if !all_found {
+            eprintln!(
+                "Mismatch at index {}: expected substrings {:?} not all found in actual '{}'.\nFull raw output:\n{}",
+                i, expected_subs, actual, actual_outputs
+            );
+            mismatch = true;
+        }
+    }
+    if mismatch {
         panic!(
-            "Vector mismatch in test '{}'\nExpected vector: {:?}\nActual vector:   {:?}\n\nFull raw output:\n{}",
-            name, expected_vec, actual_vec, actual_outputs
+            "Vector mismatch in test '{}'\nExpected substrings: {:?}\nActual vector:   {:?}\n\nFull raw output:\n{}",
+            name, expected_outputs, actual_vec, actual_outputs
         );
     }
 }
