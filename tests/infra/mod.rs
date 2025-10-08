@@ -39,13 +39,25 @@ macro_rules! repl_tests {
     }
 }
 
-fn compile(name: &str) -> Result<(String, String), String> {
-    // Build the project
-    let status = Command::new("cargo")
-        .arg("build")
-        .status()
-        .expect("could not run cargo");
+fn build() {
+    let status = if cfg!(target_os = "macos") {
+        Command::new("cargo")
+            .arg("build")
+            .arg("--target")
+            .arg("x86_64-apple-darwin")
+            .status()
+            .expect("could not run argo")
+    } else {
+        Command::new("cargo")
+            .arg("build")
+            .status()
+            .expect("could not run cargo")
+    };
     assert!(status.success(), "could not build the project");
+}
+
+fn compile(name: &str) -> Result<(String, String), String> {
+    build();
 
     // Run the compiler
     let boa_path = if cfg!(target_os = "macos") {
@@ -82,7 +94,7 @@ fn compile(name: &str) -> Result<(String, String), String> {
         .expect("could not run make");
     assert!(output.status.success(), "linking failed");
 
-    // Run program and capture stdout
+    // Run produced program and capture stdout
     let run_path = mk_path(name, Ext::Run);
     let output_run = Command::new(&run_path)
         .output()
@@ -134,12 +146,7 @@ pub(crate) fn run_failure_test(name: &str, expected: &str) {
 }
 
 pub(crate) fn run_repl_sequence_test(name: &str, commands: &[&str], expected_outputs: &[&str]) {
-    // Build project
-    let status = Command::new("cargo")
-        .arg("build")
-        .status()
-        .expect("could not run cargo");
-    assert!(status.success(), "could not build the project");
+    build();
 
     let actual_outputs = run_repl_with_timeout(commands, 3000);
 
